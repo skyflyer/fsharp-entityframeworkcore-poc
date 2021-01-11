@@ -4,3 +4,4 @@ NOTES.md
 .ionide/
 sandbox.fsx
 .fake
+.vscode/
