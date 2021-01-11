@@ -1,6 +1,5 @@
 namespace Poc.Core
 
-
 module WrappedString =
     /// An interface that all wrapped strings support
     type IWrappedString =

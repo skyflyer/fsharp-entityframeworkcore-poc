@@ -3,3 +3,4 @@ obj/
 NOTES.md
 .ionide/
 sandbox.fsx
+.fake

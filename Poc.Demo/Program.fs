@@ -1,60 +1,48 @@
 ﻿open System
 open Poc.Core
-open Poc.Core.WrappedString
-open Poc.Core.Validate
+open Poc.Core.Product
 
-type PositiveInt = private PInt of int with
-    static member FromInt i =
-        if i <= 0 then invalidArg "value" "Must be positive!"
-        else PInt i
-
-module NonNegativeDecimal = 
-    type T = NonNegativeDecimal of decimal
-
-    let create d =
-        // if d >= 0m then d
-        // else invalidArg "value" "The value must not be negative!"
-        ensureNonNegative d
 
 [<EntryPoint>]
 let main argv =
-    Validate.ensureNonNegative 0m |> ignore
-    Validate.ensureNonNegative 1m |> ignore
-    Validate.ensureNonNegative 12.2m |> ignore
+    let p1 = Product.create "Apple" 12.0m
 
-    let d1 = NonNegativeDecimal.create 2.2m
-    try
-        NonNegativeDecimal.create -2.2m |> ignore
-    with
-        | _ -> ()
+    let createOrder =
+        Order.create (fun unit -> Order.OrderNumber "ABC-123")
 
-    let p1 = Product("Apple", 12.0m)
     try
-        Product("Fail", -2.0m) |> ignore
+        Product.create "Fail" -2.0m |> ignore
         printfn "== ERROR == Should not happen!"
-    with
-        | ex -> printfn "Price with negative price failed: %s" ex.Message
-    let p3 = Product(Some (ProductId 2), "Banana", 2.0m)
+    with ex -> printfn "Price with negative price failed: %s" ex.Message
 
-    // printfn "P1: %A" p1
-    // printfn "P3: %A" p3
+    let p3 =
+        Product.createWithId (Some(ProductId 2)) "Banana" 2.0m
 
-    let c = Customer("John Doe")
-    let o = Order(None, c, [p1])
+    let customer = Customer.create "John Doe"
+    let order = createOrder customer [ p1; p3 ] []
+    printfn "Created order: %A" order
+    printfn "        Total: %.2f" (Order.total order)
 
     try
-        o.MarkAsShipped()
+        Order.markOrderAsShipped order |> ignore
         printfn "== ERROR == should fail before"
-    with
-        | ex -> printfn "OK - can not mark as shipped yet: %s" ex.Message
+    with ex -> printfn "OK - can not mark as shipped yet: %s" ex.Message
 
 
-    o.AddPayment(CashPayment(14m, DateTimeOffset.Now, "ABC097"))
-    printfn "Order status: %A" o.Status
+    let paidOrder =
+        Order.addPayment
+            order
+            (CashPayment
+                { Timestamp = DateTimeOffset.Now
+                  Amount = 14m
+                  PosReferenceNumber = "ABC097" })
 
-    o.MarkAsShipped()
-    o.MarkAsDelivered()
-    printfn "Order status: %A" o.Status
-    printfn "Order total: %.2f" o.Total
+    printfn "Order: %A" paidOrder
+
+    let shippedOrder = Order.markOrderAsShipped paidOrder
+    printfn "Shipped order: %A" shippedOrder
+
+    let delivered = Order.markOrderAsDelivered shippedOrder
+    printfn "Delivered order: %A" delivered
 
     0 // return an integer exit code

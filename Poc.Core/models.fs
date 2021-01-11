@@ -4,34 +4,34 @@ open System
 open WrappedString
 open Validate
 
-type ProductId = ProductId of int
 
-type Product(id, name, price) =
-    //TODO: id should be non optional here, e.g.
-    do
-        // TODO: this or `NonNegativeDecimal` wrapped type?
-        if price < 0m then
-            invalidArg "price" "Price must not be negative!"
+module Product =
+    type ProductId = ProductId of int
 
-    member this.Id: ProductId option = id
-    member this.Name: string = Validate.ensureString50 name
-    member this.Price: decimal = price
+    type Product =
+        { Id: ProductId option
+          Name: string
+          Price: decimal }
 
-    new(name, price) = Product(None, name, price)
+        override this.ToString() =
+            sprintf "Product id: %A name: %s price: %M" this.Id this.Name this.Price
 
-    override this.ToString() =
-        sprintf "Product id: %A name: %s price: %M" this.Id this.Name this.Price
+    let createWithId id name price =
+        { Id = id
+          Name = ensureString50 name
+          Price = ensureNonNegative price }
 
-type CustomerId = CustomerId of int
+    let create (name:string) (price:decimal) = createWithId None name price
 
-type Customer(id, name) =
-    member this.Id: CustomerId option = id
-    member this.Name: String50 = name
+module Customer =
+    type CustomerId = CustomerId of int
 
-    new(name: string) = Customer(None, Option.get (string50 name))
+    type Customer =
+        { Id: CustomerId option
+          Name: String50 }
 
+    let create name = { Id = None; Name = (string50 name) |> Option.get }
 
-type OrderId = OrderId of int
 
 type OrderStatus =
     | Created
@@ -39,65 +39,100 @@ type OrderStatus =
     | Shipped
     | Delivered
 
-type Payment(amount: decimal, ts: DateTimeOffset) =
-    member this.Timestamp = ts
-    member this.Amount = amount
 
-type CashPayment(amount, ts, ref) =
-    inherit Payment(amount, ts)
-    with
-        member this.PosReferenceNumber: String50 = string50 ref |> Option.get
+type CashPayment =
+    { Timestamp: DateTimeOffset
+      Amount: decimal
+      PosReferenceNumber: string }
 
 type CreditCardType =
     | Visa
     | Mastercard
     | Amex
 
-type CreditCardPayment(amount, ts, card, txId) =
-    inherit Payment(amount, ts)
-    with
-        member this.Type: CreditCardType = card
-        member this.TxId: String100 = string100 txId |> Option.get
+type CreditCardPayment =
+    { Timestamp: DateTimeOffset
+      Amount: decimal
+      CardType: CreditCardType
+      TxId: string }
 
-type Order(id, customer, items: list<Product>) =
-    do
-        if items.IsEmpty then
-            invalidArg "items" "Must not be empty list"
+type Payment =
+    | CashPayment of CashPayment
+    | CreditCardPayment of CreditCardPayment
 
-    let mutable status = Created
-    let mutable payments : list<Payment> = []
-    member this.Id: OrderId option = id
-    member this.Customer: Customer = customer
-    member this.Items = items
-    member this.Status 
-        with get() = status
-        and set(value) = status <- value
-    member this.Payments with get() = payments
+module Order =
 
-    member this.AddPayment(p: Payment) =
-        let itemsTotal =
-          List.fold (fun acc (elem: Product) -> acc + elem.Price) 0m this.Items
+    type OrderId = OrderId of int
+    type OrderNumber = OrderNumber of string
 
-        let paymentsTotal =
-          p.Amount
-          + List.fold (fun acc (elem: Payment) -> acc + elem.Amount) 0m this.Payments
+    type OrderNumberGenerator = unit -> OrderNumber
+    type Order = {
+        Id: OrderId option
+        OrderNumber: OrderNumber
+        Customer: Customer.Customer
+        Items: Product.Product list
+        Payments: Payment list
+    }
+    type OrderState =
+        | Created of Order 
+        | Paid of Order
+        | Shipped of Order
+        | Delivered of Order
 
-        match paymentsTotal with
-        | itemsTotal -> status <- Paid
-        | paymentsTotal when paymentsTotal > itemsTotal -> failwith "Too much payment"
+    
+    let total orderState =
+        let order =
+            match orderState with
+            | Created order -> order
+            | Paid order -> order
+            | Shipped order -> order
+            | Delivered order -> order
 
-        payments <- (p :: payments)
+        order.Items |> List.sumBy (fun item -> item.Price)
 
-    member this.MarkAsShipped() =
-        match this.Status with
-        | Paid -> this.Status <- Shipped
-        | _ -> failwithf "Can not mark order as shipped in status %A" this.Status
+    let totalPayments payments =
+        payments
+        |> List.sumBy (fun item ->
+            match item with
+            | CashPayment c -> c.Amount
+            | CreditCardPayment c -> c.Amount)
 
-    member this.MarkAsDelivered() =
-        match this.Status with
-        | Shipped -> this.Status <- Delivered
-        | _ -> failwithf "Can not mark order as delivered in status %A" this.Status
+    let create (generateOrderNumber:OrderNumberGenerator) customer items payments =
+        // TODO: verify that payments not > total
+        Created {
+            Id = None
+            OrderNumber = generateOrderNumber()
+            Customer = customer
+            Items = items
+            Payments = payments }
 
-    member this.Total with get() = List.fold (fun acc (elem:Product) -> acc + elem.Price) 0m items
+    let addPayment (orderState: OrderState) (payment : Payment) =
+        let orderTotal = total orderState
 
+        let paymentAmount =
+            match payment with
+            | CashPayment c -> c.Amount
+            | CreditCardPayment c -> c.Amount
 
+        match orderState with 
+        | Created order ->
+            let payments = payment :: order.Payments
+            let paymentIsComplete = (orderTotal = totalPayments payments)
+            if totalPayments payments > orderTotal then
+                failwith "Payment error"
+            else if paymentIsComplete then
+                Paid { order with Payments = payments }
+            else
+                Created { order with Payments = payments }
+        | _ -> failwith "Payment error"
+            
+
+    let markOrderAsShipped orderState = 
+        match orderState with
+        | Paid order -> Shipped order
+        | _ -> failwith "Not available"
+
+    let markOrderAsDelivered orderState = 
+        match orderState with
+        | Shipped order -> Delivered order
+        | _ -> failwith "Not available"
