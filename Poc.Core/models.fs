@@ -39,9 +39,10 @@ type OrderStatus =
     | Shipped
     | Delivered
 
-
+type PaymentId = PaymentId of int
 type CashPayment =
-    { Timestamp: DateTimeOffset
+    { Id: PaymentId option
+      Timestamp: DateTimeOffset
       Amount: decimal
       PosReferenceNumber: string }
 
@@ -51,7 +52,8 @@ type CreditCardType =
     | Amex
 
 type CreditCardPayment =
-    { Timestamp: DateTimeOffset
+    { Id: PaymentId option
+      Timestamp: DateTimeOffset
       Amount: decimal
       CardType: CreditCardType
       TxId: string }
