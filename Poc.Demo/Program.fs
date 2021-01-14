@@ -52,7 +52,7 @@ module Main =
     let createOrder =
         Order.create (fun unit -> Order.OrderNumber "ABC-123")
 
-    let configureSqliteContext = 
+    let dbContext = 
         let opts = new DbContextOptionsBuilder<OrderContext>()
         opts.UseSqlite("Data source=demo.db",  (fun o -> o.MigrationsAssembly("Poc.Data.Migrations") |> ignore)) |> ignore
         new OrderContext(opts.Options)
@@ -74,14 +74,20 @@ module Main =
                       Amount = 12.0m
                       PosReferenceNumber = "ABC123" } ]
 
+        dbContext.Database.Migrate() |> ignore
+
         // Save order
-        let savedCustomerDto = { Customer.fromDomain customer with Id = 772 }
-        // let orderDto, orderItemDtos, orderPaymentDtos = Order.fromDomain order
-        let savedOrderDto = { (Order.fromDomain savedCustomerDto.Id order) with Id = 44 }
+        printfn "About to save an order: %A" (Order.fromDomain order)
+        printfn "Orders: %A" dbContext.orders
+        dbContext.orders.Add(Order.fromDomain order) |> ignore
+        dbContext.SaveChanges() |> ignore
+        // let savedCustomerDto = { Customer.fromDomain customer with Id = 772 }
+        // // let orderDto, orderItemDtos, orderPaymentDtos = Order.fromDomain order
+        // let savedOrderDto = { (Order.fromDomain order) with Id = 44 }
 
         
         // let orderItemDtos = Order.itemsFromDomain savedOrderDto.Id order 
-        let paymentItemDtos = Order.paymentsFromDomain savedOrderDto.Id order
-        printfn "%A" (savedCustomerDto, savedOrderDto, paymentItemDtos)
+        // let paymentItemDtos = Order.paymentsFromDomain savedOrderDto.Id order
+        // printfn "%A" (savedCustomerDto, savedOrderDto, paymentItemDtos)
 
         0 // return an integer exit code

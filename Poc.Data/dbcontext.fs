@@ -19,6 +19,8 @@ type OrderContext =
         modelBuilder.Entity<Customer.CustomerDto>().ToTable("Customer") |> ignore
         
         modelBuilder.Entity<Product.ProductDto>().ToTable("Product") |> ignore
+        
+        modelBuilder.Entity<Payment.OrderPaymentDto>().ToTable("Payments") |> ignore
 
     override __.OnConfiguring(optionsBuilder: DbContextOptionsBuilder) =
         optionsBuilder.UseSqlite(
@@ -28,15 +30,25 @@ type OrderContext =
 
     [<DefaultValue>]
     val mutable customers:DbSet<Customer.CustomerDto>
+    member this.Customers
+        with get() = this.customers
+        and set v = this.customers <- v
 
     [<DefaultValue>]
     val mutable products:DbSet<Product.ProductDto>
+    member this.Products
+        with get() = this.products
+        and set v = this.products <- v
+
 
     [<DefaultValue>]
     val mutable orders:DbSet<Order.OrderDto>
-    member x.Items
-        with get() = x.Items
-        and set v = x.Items <- v
+    member this.Orders
+        with get() = this.orders
+        and set v = this.orders <- v
 
     [<DefaultValue>]
     val mutable orderItems:DbSet<Order.OrderItemDto>
+    member this.OrderItems
+        with get() = this.orderItems
+        and set v = this.orderItems <- v

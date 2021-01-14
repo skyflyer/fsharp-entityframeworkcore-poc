@@ -42,11 +42,10 @@ module DTO =
         [<CLIMutable>]
         type OrderPaymentDto =
             { Id: int
-              OrderId: int
               Amount: decimal
               PaymentType: int
-              PosReferenceNumber: string option
-              TxId: string option }
+              PosReferenceNumber: string
+              TxId: string }
 
         let paymentIdToInt (paymentId: PaymentId option) =
             paymentId
@@ -59,23 +58,21 @@ module DTO =
             | CashPayment c -> int PaymentType.CashPayment
             | CreditCardPayment c -> int PaymentType.CreditCardPayment
 
-        let fromDomain: (int -> Payment -> OrderPaymentDto) =
-            fun orderId payment ->
+        let fromDomain: (Payment -> OrderPaymentDto) =
+            fun payment ->
                 match payment with
                 | CashPayment c ->
                     { Id = paymentIdToInt c.Id
-                      OrderId = orderId
                       Amount = c.Amount
                       PaymentType = paymentType payment
-                      PosReferenceNumber = Some c.PosReferenceNumber
-                      TxId = None }
+                      PosReferenceNumber = c.PosReferenceNumber
+                      TxId = null }
                 | CreditCardPayment c ->
                     { Id = paymentIdToInt c.Id
-                      OrderId = orderId
                       Amount = c.Amount
                       PaymentType = paymentType payment
-                      PosReferenceNumber = None
-                      TxId = Some c.TxId }
+                      PosReferenceNumber = null
+                      TxId = c.TxId }
 
     module Customer =
 
@@ -105,14 +102,15 @@ module DTO =
         type OrderDto =
             { Id: int
               OrderNumber: string
-              CustomerId: int
+              Customer: Customer.CustomerDto
               Status: int
-              Items: OrderItemDto list }
+              Items: Collections.Generic.List<OrderItemDto>
+              Payments: Collections.Generic.List<Payment.OrderPaymentDto> }
 
         and [<CLIMutable>] OrderItemDto =
             { Id: int
-              OrderId: int
-              ProductId: int
+              Product: Product.ProductDto
+              Title: string
               Price: decimal }
 
         let orderNumberToString (OrderNumber (x)) = x
@@ -122,17 +120,24 @@ module DTO =
             | OrderId x -> x
 
         let itemsFromDomain =
-            fun orderId (items: Product.Product list) ->
+            fun (items: Product.Product list) ->
                 items
                 |> List.map
                     (fun i ->
                         { Id = 0
-                          OrderId = orderId
-                          ProductId = Product.productIdToInt i.Id
+                          Product = Product.fromDomain i
+                          Title = i.Name
                           Price = i.Price })
+                |> ResizeArray<_>
+
+        let paymentsFromDomain =
+            fun (payments: Payment list) ->
+                payments
+                |> List.map Payment.fromDomain
+                |> ResizeArray<_>
 
         let fromDomain =
-            fun (customerId:int) orderState ->
+            fun orderState ->
                 let order, status =
                     match orderState with
                     | Created o -> o, (int OrderStatus.CreatedOrder)
@@ -141,21 +146,9 @@ module DTO =
                 // OrderDto
                 { Id = orderIdToInt (order.Id)
                   OrderNumber = string order.OrderNumber
-                  CustomerId = customerId
+                  Customer = Customer.fromDomain order.Customer
                   Status = status
-                  Items = itemsFromDomain 0 order.Items }
+                  Items = (itemsFromDomain order.Items)
+                  Payments = (paymentsFromDomain order.Payments)
+                  }
 
-        let paymentsFromDomain =
-            fun (orderId: int) (orderState: OrderState) ->
-                let order =
-                    match orderState with
-                    | Created o -> o
-                    | _ -> failwith "notimpl"
-
-                let x =
-                    match order.Payments with
-                    | head :: tail -> head
-                    | [] -> failwith "nogo"
-                   
-                order.Payments
-                |> List.map (Payment.fromDomain orderId)
