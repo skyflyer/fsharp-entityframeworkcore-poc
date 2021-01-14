@@ -5,3 +5,5 @@ NOTES.md
 sandbox.fsx
 .fake
 .vscode/
+# sqlite files
+Poc.Demo/*.db*

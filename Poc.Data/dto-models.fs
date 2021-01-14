@@ -5,6 +5,29 @@ open Poc.Core.Order
 open System
 
 module DTO =
+
+    module Product = 
+        [<CLIMutable>]
+        type ProductDto = {
+            Id: int
+            Name: string
+            Price: decimal
+        }
+
+        let productIdToInt (productId: Product.ProductId option) =
+            productId
+            |> Option.defaultValue (Product.ProductId 0)
+            |> function
+            | Product.ProductId x -> x
+
+        let fromDomain =
+            fun (product: Product.Product) ->
+                { 
+                    Id = productIdToInt product.Id
+                    Name = product.Name
+                    Price = product.Price
+                }
+
     module Payment =
 
         type PaymentType =
@@ -16,6 +39,7 @@ module DTO =
             | Mastercard = 2
             | Amex = 3
 
+        [<CLIMutable>]
         type OrderPaymentDto =
             { Id: int
               OrderId: int
@@ -55,14 +79,15 @@ module DTO =
 
     module Customer =
 
-        type CustomerDTO = { Id: int; Name: string }
+        [<CLIMutable>]
+        type CustomerDto = { Id: int; Name: string }
 
 
         let customerIdToInt (customerId: Customer.CustomerId option) =
             match Option.defaultValue (Customer.CustomerId 0) customerId with
             | Customer.CustomerId x -> x
 
-        type MapCustomerToCustomerDto = (Customer.Customer -> CustomerDTO)
+        type MapCustomerToCustomerDto = (Customer.Customer -> CustomerDto)
 
         let fromDomain: MapCustomerToCustomerDto =
             fun customer ->
@@ -76,19 +101,19 @@ module DTO =
             | ShippedOrder = 3
             | DeliveredOrder = 4
 
+        [<CLIMutable>]
         type OrderDto =
             { Id: int
               OrderNumber: string
               CustomerId: int
-              Status: int }
+              Status: int
+              Items: OrderItemDto list }
 
-        type OrderItemDto =
+        and [<CLIMutable>] OrderItemDto =
             { Id: int
               OrderId: int
               ProductId: int
               Price: decimal }
-
-        type MapOrderFromDomain = OrderState -> (OrderDto * OrderItemDto list * Payment.OrderPaymentDto list)
 
         let orderNumberToString (OrderNumber (x)) = x
 
@@ -96,12 +121,15 @@ module DTO =
             match Option.defaultValue (OrderId 0) orderId with
             | OrderId x -> x
 
-        let productIdToInt (productId: Product.ProductId option) =
-            productId
-            |> Option.defaultValue (Product.ProductId 0)
-            |> function
-            | Product.ProductId x -> x
-
+        let itemsFromDomain =
+            fun orderId (items: Product.Product list) ->
+                items
+                |> List.map
+                    (fun i ->
+                        { Id = 0
+                          OrderId = orderId
+                          ProductId = Product.productIdToInt i.Id
+                          Price = i.Price })
 
         let fromDomain =
             fun (customerId:int) orderState ->
@@ -114,22 +142,8 @@ module DTO =
                 { Id = orderIdToInt (order.Id)
                   OrderNumber = string order.OrderNumber
                   CustomerId = customerId
-                  Status = status }
-
-        let itemsFromDomain =
-            fun orderId (orderState: OrderState) ->
-                let order =
-                    match orderState with
-                    | Created o -> o
-                    | _ -> failwith "notimpl"
-
-                order.Items
-                |> List.map
-                    (fun i ->
-                        { Id = 0
-                          OrderId = orderId
-                          ProductId = productIdToInt i.Id
-                          Price = i.Price })
+                  Status = status
+                  Items = itemsFromDomain 0 order.Items }
 
         let paymentsFromDomain =
             fun (orderId: int) (orderState: OrderState) ->
