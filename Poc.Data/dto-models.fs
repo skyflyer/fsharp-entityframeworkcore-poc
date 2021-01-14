@@ -28,6 +28,14 @@ module DTO =
                     Price = product.Price
                 }
 
+        let toDomain : (ProductDto -> Product.Product) =
+            fun dto ->
+                {
+                    Id = Some (Product.ProductId dto.Id)
+                    Name = dto.Name
+                    Price = dto.Price
+                }
+
     module Payment =
 
         type PaymentType =
@@ -75,6 +83,7 @@ module DTO =
                       TxId = c.TxId }
 
     module Customer =
+        open WrappedString
 
         [<CLIMutable>]
         type CustomerDto = { Id: int; Name: string }
@@ -90,6 +99,13 @@ module DTO =
             fun customer ->
                 { Id = customerIdToInt customer.Id
                   Name = WrappedString.value customer.Name }
+
+        let toDomain: CustomerDto -> Customer.Customer =
+            fun customerDto ->
+                {
+                    Id = Some (Customer.CustomerId customerDto.Id)
+                    Name = string50 customerDto.Name |> Option.get
+                }
 
     module Order =
         type OrderStatus =
